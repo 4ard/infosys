@@ -54,5 +54,5 @@ class Customer:
                 self.__address == other.__address and
                 self.__phone == other.__phone and
                 self.__contact_person == other.__contact_person)
-
+#
 
