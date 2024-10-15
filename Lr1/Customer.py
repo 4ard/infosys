@@ -1,3 +1,5 @@
+import json
+
 class Customer:
     def __init__(self, name, address, phone, contact_person):
         self.__name = self.validate_field(name, "Имя")
@@ -5,33 +7,30 @@ class Customer:
         self.__phone = self.validate_field(phone, "Телефон")
         self.__contact_person = self.validate_field(contact_person, "Контактное лицо")
 
-    # Геттеры
-    def get_name(self):
-        return self.__name
+    @classmethod
+    def from_json(cls, json_data):
+        data = json.loads(json_data)
+        return cls(
+            name=data.get('name'),
+            address=data.get('address'),
+            phone=data.get('phone'),
+            contact_person=data.get('contact_person')
+        )
 
-    def get_address(self):
-        return self.__address
+    @classmethod
+    def from_string(cls, string_data):
+        parts = string_data.split(';')
+        if len(parts) != 4:
+            raise ValueError("Строка должна содержать 4 поля, разделенные ';'.")
+        return cls(
+            name=parts[0].strip(),
+            address=parts[1].strip(),
+            phone=parts[2].strip(),
+            contact_person=parts[3].strip()
+        )
 
-    def get_phone(self):
-        return self.__phone
+    # Геттеры и сеттеры (остаются без изменений)
 
-    def get_contact_person(self):
-        return self.__contact_person
-
-    # Сеттеры
-    def set_name(self, name):
-        self.__name = self.validate_field(name, "Имя")
-
-    def set_address(self, address):
-        self.__address = self.validate_field(address, "Адрес")
-
-    def set_phone(self, phone):
-        self.__phone = self.validate_field(phone, "Телефон")
-
-    def set_contact_person(self, contact_person):
-        self.__contact_person = self.validate_field(contact_person, "Контактное лицо")
-
-    # Общий статический метод валидации
     @staticmethod
     def validate_field(value, field_name):
         if not value or not isinstance(value, str):
@@ -43,3 +42,6 @@ class Customer:
                 f"Адрес: {self.__address}, "
                 f"Телефон: {self.__phone}, "
                 f"Контактное лицо: {self.__contact_person}")
+
+
+
