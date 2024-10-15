@@ -1,5 +1,3 @@
-import json
-
 class Customer:
     def __init__(self, name, address, phone, contact_person):
         self.__name = self.validate_field(name, "Имя")
@@ -38,10 +36,23 @@ class Customer:
         return value
 
     def __str__(self):
-        return (f"Заказчик: {self.__name}, "
+        return f"{self.short_version()} | Полная информация: {self.full_version()}"
+
+    def short_version(self):
+        return f"Заказчик: {self.__name}, Телефон: {self.__phone}"
+
+    def full_version(self):
+        return (f"Имя: {self.__name}, "
                 f"Адрес: {self.__address}, "
                 f"Телефон: {self.__phone}, "
                 f"Контактное лицо: {self.__contact_person}")
 
+    def __eq__(self, other):
+        if not isinstance(other, Customer):
+            return NotImplemented
+        return (self.__name == other.__name and
+                self.__address == other.__address and
+                self.__phone == other.__phone and
+                self.__contact_person == other.__contact_person)
 
 
