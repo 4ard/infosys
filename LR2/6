@@ -1,0 +1,30 @@
+class MyEntityRepDBAdapter(MyEntityRepository):
+    """Адаптер для включения MyEntityRepDB в общую иерархию."""
+    def __init__(self, db_connection):
+        self.db = MyEntityRepDB(db_connection)
+
+    def read_all(self):
+        """Возвращает список всех объектов (не используется, но сохраняет общий интерфейс)."""
+        raise NotImplementedError("Метод не реализован для базы данных.")
+
+    def write_all(self):
+        """Метод для сохранения всех объектов (не требуется для базы данных)."""
+        raise NotImplementedError("Метод не реализован для базы данных.")
+
+    def get_by_id(self, customer_id):
+        return self.db.get_by_id(customer_id)
+
+    def get_k_n_short_list(self, k, n):
+        return self.db.get_k_n_short_list(k, n)
+
+    def add(self, name, address, phone, contact_person):
+        return self.db.add(name, address, phone, contact_person)
+
+    def replace_by_id(self, customer_id, name=None, address=None, phone=None, contact_person=None):
+        self.db.replace_by_id(customer_id, name, address, phone, contact_person)
+
+    def delete_by_id(self, customer_id):
+        self.db.delete_by_id(customer_id)
+
+    def get_count(self):
+        return self.db.get_count()
