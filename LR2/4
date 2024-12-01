@@ -1,0 +1,132 @@
+import mysql.connector
+
+
+class Customer:
+    def __init__(self, customer_id, name, address, phone, contact_person):
+        self.customer_id = customer_id
+        self.name = name
+        self.address = address
+        self.phone = phone
+        self.contact_person = contact_person
+
+    def short_version(self):
+        return f"{self.name} ({self.phone})"
+
+    def __str__(self):
+        return f"Customer[{self.customer_id}]: {self.name}, {self.address}, {self.phone}, {self.contact_person}"
+
+
+class MyEntityRepDB:
+    def __init__(self, host, user, password, database):
+        self.connection = mysql.connector.connect(
+            host=host,
+            user=user,
+            password=password,
+            database=database
+        )
+        self.cursor = self.connection.cursor(dictionary=True)
+
+    def get_by_id(self, customer_id):
+        """Получить объект по ID."""
+        query = "SELECT * FROM customers WHERE customer_id = %s"
+        self.cursor.execute(query, (customer_id,))
+        result = self.cursor.fetchone()
+        if result:
+            return Customer(**result)
+        return None
+
+    def get_k_n_short_list(self, k, n):
+        """Получить список k по счету n объектов класса short."""
+        offset = (n - 1) * k
+        query = f"SELECT * FROM customers ORDER BY customer_id LIMIT %s OFFSET %s"
+        self.cursor.execute(query, (k, offset))
+        results = self.cursor.fetchall()
+        return [f"{row['name']} ({row['phone']})" for row in results]
+
+    def add(self, name, address, phone, contact_person):
+        """Добавить объект в список (сформировать новый ID)."""
+        query = """
+        INSERT INTO customers (name, address, phone, contact_person)
+        VALUES (%s, %s, %s, %s)
+        """
+        self.cursor.execute(query, (name, address, phone, contact_person))
+        self.connection.commit()
+        return self.cursor.lastrowid
+
+    def replace_by_id(self, customer_id, name=None, address=None, phone=None, contact_person=None):
+        """Заменить элемент списка по ID."""
+        updates = []
+        values = []
+        if name:
+            updates.append("name = %s")
+            values.append(name)
+        if address:
+            updates.append("address = %s")
+            values.append(address)
+        if phone:
+            updates.append("phone = %s")
+            values.append(phone)
+        if contact_person:
+            updates.append("contact_person = %s")
+            values.append(contact_person)
+
+        if updates:
+            query = f"UPDATE customers SET {', '.join(updates)} WHERE customer_id = %s"
+            values.append(customer_id)
+            self.cursor.execute(query, tuple(values))
+            self.connection.commit()
+
+    def delete_by_id(self, customer_id):
+        """Удалить элемент списка по ID."""
+        query = "DELETE FROM customers WHERE customer_id = %s"
+        self.cursor.execute(query, (customer_id,))
+        self.connection.commit()
+
+    def get_count(self):
+        """Получить количество элементов."""
+        query = "SELECT COUNT(*) AS count FROM customers"
+        self.cursor.execute(query)
+        result = self.cursor.fetchone()
+        return result['count']
+
+    def close(self):
+        """Закрыть соединение с базой данных."""
+        self.cursor.close()
+        self.connection.close()
+
+
+# Пример использования
+if __name__ == "__main__":
+    # Настройки подключения к базе данных
+    db = MyEntityRepDB(
+        host="localhost",
+        user="root",
+        password="password",
+        database="test_db"
+    )
+
+    # Добавление клиента
+    new_id = db.add("Иван Иванов", "ул. Ленина, д. 5", "1234567890", "Петр Петров")
+    print(f"Добавлен клиент с ID: {new_id}")
+
+    # Получение клиента по ID
+    customer = db.get_by_id(new_id)
+    print(customer)
+
+    # Получение краткого списка
+    short_list = db.get_k_n_short_list(k=2, n=1)
+    print(short_list)
+
+    # Замена данных клиента
+    db.replace_by_id(new_id, phone="5555555555")
+    print(db.get_by_id(new_id))
+
+    # Удаление клиента
+    db.delete_by_id(new_id)
+
+    # Получение общего количества клиентов
+    count = db.get_count()
+    print(f"Общее количество клиентов: {count}")
+
+    # Закрытие соединения
+    db.close()
