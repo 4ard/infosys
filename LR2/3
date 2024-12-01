@@ -1,0 +1,144 @@
+import json
+import yaml
+from abc import ABC, abstractmethod
+
+
+class Customer:
+    def __init__(self, customer_id, name, address, phone, contact_person):
+        self.customer_id = customer_id
+        self.name = name
+        self.address = address
+        self.phone = phone
+        self.contact_person = contact_person
+
+    def to_dict(self):
+        return {
+            "customer_id": self.customer_id,
+            "name": self.name,
+            "address": self.address,
+            "phone": self.phone,
+            "contact_person": self.contact_person
+        }
+
+    @staticmethod
+    def from_dict(data):
+        return Customer(
+            customer_id=data["customer_id"],
+            name=data["name"],
+            address=data["address"],
+            phone=data["phone"],
+            contact_person=data["contact_person"]
+        )
+
+    def short_version(self):
+        return f"{self.name} ({self.phone})"
+
+    def __str__(self):
+        return f"Customer[{self.customer_id}]: {self.name}, {self.address}, {self.phone}, {self.contact_person}"
+
+
+class MyEntityRepository(ABC):
+    def __init__(self):
+        self.data = self.read_all()
+
+    @abstractmethod
+    def read_all(self):
+        """Чтение всех значений из файла."""
+        pass
+
+    @abstractmethod
+    def write_all(self):
+        """Запись всех значений в файл."""
+        pass
+
+    def get_by_id(self, customer_id):
+        """Получить объект по ID."""
+        for customer in self.data:
+            if customer.customer_id == customer_id:
+                return customer
+        return None
+
+    def get_k_n_short_list(self, k, n):
+        """Получить список k по счету n объектов класса short."""
+        start_index = (n - 1) * k
+        end_index = start_index + k
+        return [customer.short_version() for customer in self.data[start_index:end_index]]
+
+    def sort_by_field(self, field):
+        """Сортировать элементы по выбранному полю."""
+        if not hasattr(Customer, field):
+            raise ValueError(f"Поле '{field}' не существует.")
+        self.data.sort(key=lambda x: getattr(x, field))
+
+    def add(self, name, address, phone, contact_person):
+        """Добавить объект в список."""
+        new_id = max([customer.customer_id for customer in self.data], default=0) + 1
+        new_customer = Customer(
+            customer_id=new_id,
+            name=name,
+            address=address,
+            phone=phone,
+            contact_person=contact_person
+        )
+        self.data.append(new_customer)
+        self.write_all()
+
+    def replace_by_id(self, customer_id, name=None, address=None, phone=None, contact_person=None):
+        """Заменить элемент списка по ID."""
+        customer = self.get_by_id(customer_id)
+        if not customer:
+            raise ValueError(f"Элемент с ID {customer_id} не найден.")
+        if name:
+            customer.name = name
+        if address:
+            customer.address = address
+        if phone:
+            customer.phone = phone
+        if contact_person:
+            customer.contact_person = contact_person
+        self.write_all()
+
+    def delete_by_id(self, customer_id):
+        """Удалить элемент списка по ID."""
+        self.data = [customer for customer in self.data if customer.customer_id != customer_id]
+        self.write_all()
+
+    def get_count(self):
+        """Получить количество элементов."""
+        return len(self.data)
+
+
+class MyEntityRepJson(MyEntityRepository):
+    def __init__(self, json_file):
+        self.json_file = json_file
+        super().__init__()
+
+    def read_all(self):
+        try:
+            with open(self.json_file, 'r') as file:
+                raw_data = json.load(file)
+                return [Customer.from_dict(item) for item in raw_data] if raw_data else []
+        except FileNotFoundError:
+            return []
+
+    def write_all(self):
+        with open(self.json_file, 'w') as file:
+            json.dump([customer.to_dict() for customer in self.data], file, indent=4)
+
+
+class MyEntityRepYaml(MyEntityRepository):
+    def __init__(self, yaml_file):
+        self.yaml_file = yaml_file
+        super().__init__()
+
+    def read_all(self):
+        try:
+            with open(self.yaml_file, 'r') as file:
+                raw_data = yaml.safe_load(file)
+                return [Customer.from_dict(item) for item in raw_data] if raw_data else []
+        except FileNotFoundError:
+            return []
+
+    def write_all(self):
+        with open(self.yaml_file, 'w') as file:
+            yaml.safe_dump([customer.to_dict() for customer in self.data], file)
