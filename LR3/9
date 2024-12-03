@@ -1,0 +1,304 @@
+import sqlite3
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidget, QVBoxLayout, QWidget, QPushButton, QTableWidgetItem, QComboBox, QMessageBox, QDialog, QLineEdit, QLabel
+import sys
+
+
+class DatabaseConnection:
+    """Класс для работы с SQLite3."""
+    def __init__(self, db_name="customers.db"):
+        self.connection = sqlite3.connect(db_name)
+        self.cursor = self.connection.cursor()
+        self.create_table()
+
+    def create_table(self):
+        """Создание таблицы, если её нет."""
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS customers (
+                customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                address TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                contact_person TEXT NOT NULL
+            )
+        ''')
+        self.connection.commit()
+
+    def execute_query(self, query, params=None):
+        """Выполнение запросов к базе данных."""
+        self.cursor.execute(query, params or ())
+        self.connection.commit()
+
+    def fetch_all(self, query, params=None):
+        """Получение всех данных."""
+        self.cursor.execute(query, params or ())
+        return self.cursor.fetchall()
+
+
+class MyEntityRepDBAdapter:
+    """Адаптер для работы с SQLite3."""
+    def __init__(self, db_connection):
+        self.db = db_connection
+
+    def get_all_detailed(self):
+        """Получить все данные для таблицы."""
+        query = "SELECT customer_id, name, address, phone, contact_person FROM customers ORDER BY customer_id"
+        return self.db.fetch_all(query)
+
+    def sort_by_field(self, field_name: str, order: str = "ASC") -> list:
+        """Сортировать записи по указанному полю."""
+        allowed_fields = ["name", "address", "phone", "contact_person"]
+        if field_name not in allowed_fields:
+            raise ValueError(f"Поле {field_name} не поддерживается для сортировки.")
+        query = f"SELECT customer_id, name, address, phone, contact_person FROM customers ORDER BY {field_name} {order}"
+        return self.db.fetch_all(query)
+
+    def delete_by_id(self, customer_id):
+        """Удалить клиента по ID."""
+        query = "DELETE FROM customers WHERE customer_id = ?"
+        self.db.execute_query(query, (customer_id,))
+
+    def add(self, name, address, phone, contact_person):
+        """Добавить нового клиента."""
+        query = """
+        INSERT INTO customers (name, address, phone, contact_person)
+        VALUES (?, ?, ?, ?)
+        """
+        self.db.execute_query(query, (name, address, phone, contact_person))
+
+
+class Observer:
+    """Интерфейс наблюдателя."""
+    def update(self, data):
+        pass
+
+
+class Observable:
+    """Класс, поддерживающий наблюдателей."""
+    def __init__(self):
+        self._observers = []
+
+    def add_observer(self, observer):
+        if observer not in self._observers:
+            self._observers.append(observer)
+
+    def remove_observer(self, observer):
+        if observer in self._observers:
+            self._observers.remove(observer)
+
+    def notify_observers(self, data):
+        for observer in self._observers:
+            observer.update(data)
+
+
+class CustomerModel(Observable):
+    """Модель для управления данными."""
+    def __init__(self, repository):
+        super().__init__()
+        self.repository = repository
+
+    def get_all_customers(self):
+        """Получить всех клиентов для таблицы."""
+        return self.repository.get_all_detailed()
+
+    def sort_customers(self, field_name: str, order: str = "ASC"):
+        """Сортировать клиентов по указанному полю."""
+        sorted_data = self.repository.sort_by_field(field_name, order)
+        self.notify_observers(sorted_data)
+
+    def delete_customer(self, customer_id):
+        """Удалить клиента по ID."""
+        if not customer_id:
+            raise ValueError("ID клиента не указан.")
+        self.repository.delete_by_id(customer_id)
+        self.notify_observers(self.get_all_customers())
+
+    def add_customer(self, name, address, phone, contact_person):
+        """Добавить клиента."""
+        self.repository.add(name, address, phone, contact_person)
+        self.notify_observers(self.get_all_customers())
+
+
+class CustomerController:
+    """Контроллер для управления взаимодействием."""
+    def __init__(self, model, view):
+        self.model = model
+        self.view = view
+        self.model.add_observer(self.view)
+
+    def load_data(self):
+        """Загрузить данные в таблицу."""
+        customers = self.model.get_all_customers()
+        self.view.display_customers(customers)
+
+    def sort_data(self, field_name: str, order: str = "ASC"):
+        """Сортировать данные."""
+        self.model.sort_customers(field_name, order)
+
+    def delete_customer(self, customer_id):
+        """Удалить клиента по ID."""
+        self.model.delete_customer(customer_id)
+
+    def add_customer(self, name, address, phone, contact_person):
+        """Добавить клиента."""
+        self.model.add_customer(name, address, phone, contact_person)
+
+
+class AddCustomerView(QDialog):
+    """Вид для добавления нового клиента."""
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+        self.init_ui()
+
+    def init_ui(self):
+        """Инициализация интерфейса."""
+        self.setWindowTitle("Добавить клиента")
+        self.resize(400, 300)
+
+        self.layout = QVBoxLayout()
+
+        self.name_label = QLabel("Наименование:")
+        self.name_input = QLineEdit()
+        self.layout.addWidget(self.name_label)
+        self.layout.addWidget(self.name_input)
+
+        self.address_label = QLabel("Адрес:")
+        self.address_input = QLineEdit()
+        self.layout.addWidget(self.address_label)
+        self.layout.addWidget(self.address_input)
+
+        self.phone_label = QLabel("Телефон:")
+        self.phone_input = QLineEdit()
+        self.layout.addWidget(self.phone_label)
+        self.layout.addWidget(self.phone_input)
+
+        self.contact_person_label = QLabel("Контактное лицо:")
+        self.contact_person_input = QLineEdit()
+        self.layout.addWidget(self.contact_person_label)
+        self.layout.addWidget(self.contact_person_input)
+
+        self.add_button = QPushButton("Добавить")
+        self.add_button.clicked.connect(self.add_customer)
+        self.layout.addWidget(self.add_button)
+
+        self.cancel_button = QPushButton("Отмена")
+        self.cancel_button.clicked.connect(self.reject)
+        self.layout.addWidget(self.cancel_button)
+
+        self.setLayout(self.layout)
+
+    def add_customer(self):
+        """Обработчик добавления клиента."""
+        name = self.name_input.text()
+        address = self.address_input.text()
+        phone = self.phone_input.text()
+        contact_person = self.contact_person_input.text()
+
+        if not name or not address or not phone or not contact_person:
+            QMessageBox.warning(self, "Ошибка", "Все поля должны быть заполнены.")
+            return
+
+        self.controller.add_customer(name, address, phone, contact_person)
+        self.accept()
+
+
+class CustomerView(QMainWindow, Observer):
+    """Вид для отображения клиентов."""
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+        self.init_ui()
+
+    def init_ui(self):
+        """Инициализация интерфейса."""
+        self.setWindowTitle("Customer Manager")
+        self.resize(800, 600)
+
+        self.central_widget = QWidget(self)
+        self.layout = QVBoxLayout(self.central_widget)
+
+        self.table = QTableWidget(self)
+        self.layout.addWidget(self.table)
+
+        self.sort_combo = QComboBox(self)
+        self.sort_combo.addItems(["name", "address", "phone", "contact_person"])
+        self.layout.addWidget(self.sort_combo)
+
+        self.sort_button = QPushButton("Сортировать")
+        self.sort_button.clicked.connect(self.sort_table)
+        self.layout.addWidget(self.sort_button)
+
+        self.add_button = QPushButton("Добавить")
+        self.add_button.clicked.connect(self.open_add_customer_window)
+        self.layout.addWidget(self.add_button)
+
+        self.delete_button = QPushButton("Удалить")
+        self.delete_button.clicked.connect(self.delete_customer)
+        self.layout.addWidget(self.delete_button)
+
+        self.save_button = QPushButton("Сохранить изменения")
+        self.layout.addWidget(self.save_button)
+
+        self.central_widget.setLayout(self.layout)
+        self.setCentralWidget(self.central_widget)
+
+    def display_customers(self, customers):
+        """Обновить таблицу с клиентами."""
+        self.table.setRowCount(len(customers))
+        self.table.setColumnCount(5)  # Для отображения 5 колонок
+        self.table.setHorizontalHeaderLabels(["ID", "Наименование", "Адрес", "Телефон", "Контактное лицо"])
+
+        for row, customer in enumerate(customers):
+            for col, value in enumerate(customer):
+                self.table.setItem(row, col, QTableWidgetItem(str(value)))
+
+    def update(self, data):
+        """Метод обновления при изменении данных."""
+        self.display_customers(data)
+
+    def sort_table(self):
+        """Сортировка данных."""
+        field_name = self.sort_combo.currentText()
+        self.controller.sort_data(field_name, "ASC")
+
+    def delete_customer(self):
+        """Обработчик удаления клиента."""
+        selected_row = self.table.currentRow()
+        if selected_row == -1:
+            QMessageBox.warning(self, "Ошибка", "Выберите запись для удаления.")
+            return
+
+        customer_id_item = self.table.item(selected_row, 0)
+        if not customer_id_item:
+            QMessageBox.warning(self, "Ошибка", "Невозможно получить ID записи.")
+            return
+
+        customer_id = int(customer_id_item.text())
+
+        confirm = QMessageBox.question(
+            self, "Подтвердите удаление", "Вы уверены, что хотите удалить эту запись?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if confirm == QMessageBox.Yes:
+            self.controller.delete_customer(customer_id)
+
+    def open_add_customer_window(self):
+        """Открыть окно добавления клиента."""
+        add_customer_view = AddCustomerView(self.controller)
+        if add_customer_view.exec():
+            self.controller.load_data()
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    db_connection = DatabaseConnection()
+    repository = MyEntityRepDBAdapter(db_connection)
+    model = CustomerModel(repository)
+    view = CustomerView(None)
+    controller = CustomerController(model, view)
+    view.controller = controller
+
+    controller.load_data()
+    view.show()
+    sys.exit(app.exec_())
