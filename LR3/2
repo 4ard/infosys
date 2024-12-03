@@ -1,0 +1,288 @@
+import sqlite3
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidget, QVBoxLayout, QWidget, QPushButton, QTableWidgetItem, QDialog, QLineEdit, QLabel, QMessageBox
+import sys
+
+
+class DatabaseConnection:
+    """Класс для работы с SQLite3."""
+    def __init__(self, db_name="customers.db"):
+        self.connection = sqlite3.connect(db_name)
+        self.cursor = self.connection.cursor()
+        self.create_table()
+
+    def create_table(self):
+        """Создание таблицы, если её нет."""
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS customers (
+                customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                address TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                contact_person TEXT NOT NULL
+            )
+        ''')
+        self.connection.commit()
+
+    def execute_query(self, query, params=None):
+        """Выполнение запросов к базе данных."""
+        self.cursor.execute(query, params or ())
+        self.connection.commit()
+
+    def fetch_all(self, query, params=None):
+        """Получение всех данных."""
+        self.cursor.execute(query, params or ())
+        return self.cursor.fetchall()
+
+
+class MyEntityRepDBAdapter:
+    """Адаптер для работы с SQLite3."""
+    def __init__(self, db_connection):
+        self.db = db_connection
+
+    def get_all_detailed(self):
+        """Получить все данные для таблицы."""
+        query = "SELECT customer_id, name, address, phone, contact_person FROM customers ORDER BY customer_id"
+        return self.db.fetch_all(query)
+
+    def add(self, name, address, phone, contact_person):
+        """Добавить нового клиента."""
+        query = """
+        INSERT INTO customers (name, address, phone, contact_person)
+        VALUES (?, ?, ?, ?)
+        """
+        self.db.execute_query(query, (name, address, phone, contact_person))
+
+    def replace_by_id(self, customer_id, name, address, phone, contact_person):
+        """Обновить клиента по ID."""
+        query = """
+        UPDATE customers SET name = ?, address = ?, phone = ?, contact_person = ?
+        WHERE customer_id = ?
+        """
+        self.db.execute_query(query, (name, address, phone, contact_person, customer_id))
+
+    def delete_by_id(self, customer_id):
+        """Удалить клиента по ID."""
+        query = "DELETE FROM customers WHERE customer_id = ?"
+        self.db.execute_query(query, (customer_id,))
+
+
+# Модель
+class Observer:
+    """Интерфейс наблюдателя."""
+    def update(self, data):
+        pass
+
+
+class Observable:
+    """Класс, поддерживающий наблюдателей."""
+    def __init__(self):
+        self._observers = []
+
+    def add_observer(self, observer):
+        if observer not in self._observers:
+            self._observers.append(observer)
+
+    def remove_observer(self, observer):
+        if observer in self._observers:
+            self._observers.remove(observer)
+
+    def notify_observers(self, data):
+        for observer in self._observers:
+            observer.update(data)
+
+
+class CustomerModel(Observable):
+    """Модель для управления данными."""
+    def __init__(self, repository):
+        super().__init__()
+        self.repository = repository
+
+    @staticmethod
+    def validate_customer(name, address, phone, contact_person):
+        """Проверить корректность данных клиента."""
+        if not name.strip():
+            raise ValueError("Наименование не может быть пустым.")
+        if not address.strip():
+            raise ValueError("Адрес не может быть пустым.")
+        if not phone.strip():
+            raise ValueError("Телефон не может быть пустым.")
+        if not contact_person.strip():
+            raise ValueError("Контактное лицо не может быть пустым.")
+
+    def get_all_customers(self):
+        """Получить всех клиентов для таблицы."""
+        return self.repository.get_all_detailed()
+
+    def add_customer(self, name, address, phone, contact_person):
+        """Добавить клиента с валидацией."""
+        self.validate_customer(name, address, phone, contact_person)
+        self.repository.add(name, address, phone, contact_person)
+        self.notify_observers(self.get_all_customers())
+
+
+# Контроллеры
+class CustomerController:
+    """Контроллер для управления взаимодействием."""
+    def __init__(self, model, view):
+        self.model = model
+        self.view = view
+        self.model.add_observer(self.view)
+
+    def load_data(self):
+        """Загрузить данные в таблицу."""
+        customers = self.model.get_all_customers()
+        self.view.display_customers(customers)
+
+    def add_customer(self, name, address, phone, contact_person):
+        """Добавить клиента."""
+        self.model.add_customer(name, address, phone, contact_person)
+
+    def save_changes(self):
+        """Сохранить изменения после редактирования в таблице."""
+        for row in range(self.view.table.rowCount()):
+            customer_id = int(self.view.table.item(row, 0).text())
+            name = self.view.table.item(row, 1).text()
+            address = self.view.table.item(row, 2).text()
+            phone = self.view.table.item(row, 3).text()
+            contact_person = self.view.table.item(row, 4).text()
+            self.model.repository.replace_by_id(customer_id, name, address, phone, contact_person)
+
+
+class AddCustomerController:
+    """Контроллер для добавления нового клиента."""
+    def __init__(self, model):
+        self.model = model
+
+    def add_customer(self, name, address, phone, contact_person):
+        """Добавить клиента с валидацией."""
+        self.model.add_customer(name, address, phone, contact_person)
+
+
+# Виды
+class CustomerView(QMainWindow, Observer):
+    """Вид для отображения клиентов."""
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+        self.init_ui()
+
+    def init_ui(self):
+        """Инициализация интерфейса."""
+        self.setWindowTitle("Customer Manager")
+        self.resize(800, 600)
+
+        self.central_widget = QWidget(self)
+        self.layout = QVBoxLayout(self.central_widget)
+
+        self.table = QTableWidget(self)
+        self.layout.addWidget(self.table)
+
+        self.add_button = QPushButton("Добавить")
+        self.add_button.clicked.connect(self.open_add_customer_window)
+        self.layout.addWidget(self.add_button)
+
+        self.save_button = QPushButton("Сохранить изменения")
+        self.save_button.clicked.connect(self.save_changes)
+        self.layout.addWidget(self.save_button)
+
+        self.central_widget.setLayout(self.layout)
+        self.setCentralWidget(self.central_widget)
+
+    def display_customers(self, customers):
+        """Обновить таблицу с клиентами."""
+        self.table.setRowCount(len(customers))
+        self.table.setColumnCount(5)  # Для отображения 5 колонок
+        self.table.setHorizontalHeaderLabels(["ID", "Наименование", "Адрес", "Телефон", "Контактное лицо"])
+
+        for row, customer in enumerate(customers):
+            for col, value in enumerate(customer):
+                self.table.setItem(row, col, QTableWidgetItem(str(value)))
+
+    def update(self, data):
+        """Метод обновления при изменении данных."""
+        self.display_customers(data)
+
+    def open_add_customer_window(self):
+        """Открыть окно добавления клиента."""
+        add_customer_controller = AddCustomerController(self.controller.model)
+        add_customer_view = AddCustomerView(add_customer_controller)
+        if add_customer_view.exec():  # Ждем закрытия окна
+            self.controller.load_data()
+
+    def save_changes(self):
+        """Сохранить изменения в таблице."""
+        self.controller.save_changes()
+
+
+class AddCustomerView(QDialog):
+    """Вид для добавления нового клиента."""
+    def __init__(self, controller):
+        super().__init__()
+        self.controller = controller
+        self.init_ui()
+
+    def init_ui(self):
+        """Инициализация интерфейса."""
+        self.setWindowTitle("Добавить клиента")
+        self.resize(400, 300)
+
+        self.layout = QVBoxLayout()
+
+        self.name_label = QLabel("Наименование:")
+        self.name_input = QLineEdit()
+        self.layout.addWidget(self.name_label)
+        self.layout.addWidget(self.name_input)
+
+        self.address_label = QLabel("Адрес:")
+        self.address_input = QLineEdit()
+        self.layout.addWidget(self.address_label)
+        self.layout.addWidget(self.address_input)
+
+        self.phone_label = QLabel("Телефон:")
+        self.phone_input = QLineEdit()
+        self.layout.addWidget(self.phone_label)
+        self.layout.addWidget(self.phone_input)
+
+        self.contact_person_label = QLabel("Контактное лицо:")
+        self.contact_person_input = QLineEdit()
+        self.layout.addWidget(self.contact_person_label)
+        self.layout.addWidget(self.contact_person_input)
+
+        self.add_button = QPushButton("Добавить")
+        self.add_button.clicked.connect(self.add_customer)
+        self.layout.addWidget(self.add_button)
+
+        self.cancel_button = QPushButton("Отмена")
+        self.cancel_button.clicked.connect(self.reject)
+        self.layout.addWidget(self.cancel_button)
+
+        self.setLayout(self.layout)
+
+    def add_customer(self):
+        """Обработчик добавления клиента."""
+        name = self.name_input.text()
+        address = self.address_input.text()
+        phone = self.phone_input.text()
+        contact_person = self.contact_person_input.text()
+
+        try:
+            self.controller.add_customer(name, address, phone, contact_person)
+            self.accept()  # Закрыть окно при успешном добавлении
+        except ValueError as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
+
+
+# Запуск приложения
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+
+    db_connection = DatabaseConnection()
+    repository = MyEntityRepDBAdapter(db_connection)
+    model = CustomerModel(repository)
+    view = CustomerView(None)
+    controller = CustomerController(model, view)
+    view.controller = controller
+
+    controller.load_data()
+    view.show()
+    sys.exit(app.exec_())
