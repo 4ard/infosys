@@ -1,0 +1,178 @@
+import json
+import yaml
+import re
+
+class Customer:
+    def __init__(self, customer_id, name, address, phone, contact_person):
+        self.__customer_id = customer_id
+        self.set_name(name)
+        self.set_address(address)
+        self.set_phone(phone)
+        self.set_contact_person(contact_person)
+
+    @staticmethod
+    def validate(value, validation_function):
+        return validation_function(value)
+
+    @staticmethod
+    def validate_name(name):
+        return isinstance(name, str) and len(name.strip()) > 0
+
+    @staticmethod
+    def validate_address(address):
+        return isinstance(address, str) and len(address.strip()) > 0
+
+    @staticmethod
+    def validate_phone(phone):
+        return isinstance(phone, str) and re.fullmatch(r'\+?\d{7,15}', phone)
+
+    @staticmethod
+    def validate_contact_person(contact_person):
+        return isinstance(contact_person, str) and len(contact_person.strip()) > 0
+
+    def get_customer_id(self):
+        return self.__customer_id
+
+    def get_name(self):
+        return self.__name
+
+    def get_address(self):
+        return self.__address
+
+    def get_phone(self):
+        return self.__phone
+
+    def get_contact_person(self):
+        return self.__contact_person
+
+    def set_name(self, name):
+        if not self.validate(name, self.validate_name):
+            raise ValueError("Ошибочное имя клиента.")
+        self.__name = name
+
+    def set_address(self, address):
+        if not self.validate(address, self.validate_address):
+            raise ValueError("Ошибочный адрес клиента.")
+        self.__address = address
+
+    def set_phone(self, phone):
+        if not self.validate(phone, self.validate_phone):
+            raise ValueError("Ошибочный номер телефона клиента.")
+        self.__phone = phone
+
+    def set_contact_person(self, contact_person):
+        if not self.validate(contact_person, self.validate_contact_person):
+            raise ValueError("Ошибочное имя контактного лица.")
+        self.__contact_person = contact_person
+
+    def to_dict(self):
+        return {
+            "customer_id": self.get_customer_id(),
+            "name": self.get_name(),
+            "address": self.get_address(),
+            "phone": self.get_phone(),
+            "contact_person": self.get_contact_person(),
+        }
+
+    @staticmethod
+    def from_dict(data):
+        return Customer(
+            customer_id=data["customer_id"],
+            name=data["name"],
+            address=data["address"],
+            phone=data["phone"],
+            contact_person=data["contact_person"]
+        )
+
+    def __eq__(self, other):
+        return self.get_customer_id() == other.get_customer_id()
+
+    def __str__(self):
+        return f"Customer[{self.get_customer_id()}]: {self.get_name()}, {self.get_address()}, {self.get_phone()}, {self.get_contact_person()}"
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class CustomerRepository:
+    def __init__(self, yaml_file):
+        self.__yaml_file = yaml_file
+        self.__data = self.__read_all()
+
+    def __read_all(self):
+        try:
+            with open(self.__yaml_file, 'r') as file:
+                raw_data = yaml.safe_load(file) or []
+                return [Customer.from_dict(item) for item in raw_data]
+        except FileNotFoundError:
+            return []
+
+    def __write_all(self):
+        with open(self.__yaml_file, 'w') as file:
+            yaml.dump([customer.to_dict() for customer in self.__data], file)
+
+    def add(self, name, address, phone, contact_person):
+        new_id = max((customer.get_customer_id() for customer in self.__data), default=0) + 1
+        new_customer = Customer(
+            customer_id=new_id,
+            name=name,
+            address=address,
+            phone=phone,
+            contact_person=contact_person
+        )
+        self.__data.append(new_customer)
+        self.__write_all()
+
+    def get_by_id(self, customer_id):
+        for customer in self.__data:
+            if customer.get_customer_id() == customer_id:
+                return customer
+        return None
+
+    def update_by_id(self, customer_id, name=None, address=None, phone=None, contact_person=None):
+        customer = self.get_by_id(customer_id)
+        if not customer:
+            raise ValueError(f"Клиент с ID {customer_id} не найден.")
+        if name:
+            customer.set_name(name)
+        if address:
+            customer.set_address(address)
+        if phone:
+            customer.set_phone(phone)
+        if contact_person:
+            customer.set_contact_person(contact_person)
+        self.__write_all()
+
+    def delete_by_id(self, customer_id):
+        self.__data = [customer for customer in self.__data if customer.get_customer_id() != customer_id]
+        self.__write_all()
+
+    def get_all_short(self, start, count):
+        return [f"{customer.get_name()} ({customer.get_phone()})" for customer in self.__data[start:start + count]]
+
+    def sort_by_field(self, field):
+        if not hasattr(Customer, f"get_{field}"):
+            raise ValueError(f"Поле '{field}' не существует.")
+        self.__data.sort(key=lambda x: getattr(x, f"get_{field}")())
+        self.__write_all()
+
+    def get_count(self):
+        return len(self.__data)
+
+
+if __name__ == "__main__":
+    repo = CustomerRepository("customers.yaml")
+
+    repo.add("Иван Иванов", "ул. Ленина, д. 5", "+79991234567", "Петр Петров")
+    repo.add("Анна Смирнова", "ул. Пушкина, д. 10", "+79997654321", "Иван Иванов")
+
+    print(repo.get_all_short(0, 2))
+
+    customer = repo.get_by_id(1)
+    print(customer)
+
+    repo.update_by_id(1, name="Иван Петров", phone="+79995555555")
+
+    repo.delete_by_id(2)
+
+    print(repo.get_count())
