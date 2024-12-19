@@ -84,21 +84,38 @@ class CustomerRepository:
         return len(self.data)
 
 
-if __name__ == "__main__":
+class ExternalCustomerAdapter:
+    def __init__(self, external_data):
+        self.external_data = external_data
+
+    def to_customer(self):
+        return Customer(
+            customer_id=self.external_data["id"],
+            name=self.external_data["name"],
+            address=self.external_data["address"],
+            phone=self.external_data["phone"],
+            contact_person=self.external_data["contact"]
+        )
+
+
+if name == "__main__":
     repo = CustomerRepository()
 
-    new_id = repo.add("Иван Иванов", "ул. Ленина, д. 5", "+79991234567", "Петр Петров")
+    external_data = {
+        "id": "123", 
+        "name": "Петр Петров", 
+        "address": "ул. Примерная, д. 7", 
+        "phone": "+79993334455", 
+        "contact": "Иван Иванов"
+    }
+
+    adapter = ExternalCustomerAdapter(external_data)
+    customer = adapter.to_customer()
+
+    new_id = repo.add(customer.name, customer.address, customer.phone, customer.contact_person)
     print(f"Добавлен клиент с ID: {new_id}")
 
     customer = repo.get_by_id(new_id)
     print(customer)
-
-    repo.update_by_id(new_id, phone="+79995555555")
-    print(repo.get_by_id(new_id))
-
-    short_list = repo.get_all_short(0, 2)
-    print(short_list)
-
-    repo.delete_by_id(new_id)
 
     print(f"Общее количество клиентов: {repo.get_count()}")
