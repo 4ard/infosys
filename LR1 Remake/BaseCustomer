@@ -4,7 +4,6 @@ class BaseCustomer:
     def __init__(self, customer_id, name, address, phone, contact_person):
         self.set_customer_id(customer_id)
         self.set_name(name)
-        self.set_address(address)
         self.set_phone(phone)
         self.set_contact_person(contact_person)
 
