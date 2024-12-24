@@ -1,0 +1,92 @@
+import re
+
+class BaseCustomer:
+    def __init__(self, customer_id, name, phone, contact_person):
+        self.set_customer_id(customer_id)
+        self.set_name(name)
+        self.set_phone(phone)
+        self.set_contact_person(contact_person)
+
+    @staticmethod
+    def validate_field(value, name, pattern=None, min_value=None):
+        if pattern and not re.fullmatch(pattern, value):
+            raise ValueError(f"Поле {name} некорректно.")
+        if min_value is not None and (not isinstance(value, int) or value < min_value):
+            raise ValueError(f"Поле {name} должно содержать минимум: {min_value}.")
+        if not value:
+            raise ValueError(f"Поле {name} не может быть пустым.")
+
+    
+    def get_customer_id(self):
+        return self.__customer_id
+
+    def get_name(self):
+        return self.__name
+
+    def get_phone(self):
+        return self.__phone
+
+    def get_contact_person(self):
+        return self.__contact_person
+
+
+    def set_customer_id(self, value):
+        self.validate_field(value, "customer_id", min_value=1)
+        self.__customer_id = value
+
+    def set_name(self, value):
+        self.validate_field(value, "name")
+        self.__name = value
+
+    def set_phone(self, value):
+        self.validate_field(value, "phone", pattern=r"\d{10}")
+        self.__phone = value
+
+    def set_contact_person(self, value):
+        self.validate_field(value, "contact_person")
+        self.__contact_person = value
+
+    def __str__(self):
+        return (
+            f"BaseCustomer(ID: {self.get_customer_id()}, Name: {self.get_name()}, "
+            f"Phone: {self.get_phone()}, Contact Person: {self.get_contact_person()})"
+        )
+
+    def __repr__(self):
+        return str(self)
+
+class Customer(BaseCustomer):
+    def __init__(self, customer_id, name, address, phone, contact_person):
+        super().__init__(customer_id, name, phone, contact_person)
+        self.set_address(address)
+
+    
+    def get_address(self):
+        return self.__address
+
+    
+    def set_address(self, value):
+        self.validate_field(value, "address")
+        self.__address = value
+
+    def __str__(self):
+        return (
+            f"Customer(ID: {self.get_customer_id()}, Name: {self.get_name()}, Address: {self.get_address()}, "
+            f"Phone: {self.get_phone()}, Contact Person: {self.get_contact_person()})"
+        )
+
+# Пример использования
+if __name__ == "__main__":
+    try:
+        customer = Customer(1, "Ваня", "Красная 57", "8944843548763", "Дмитрпий")
+        print(customer)
+
+        customer.set_name("Евгений")
+        customer.set_phone("9494484354")
+        customer.set_address("Северная 15")
+        print(customer)
+
+        
+        customer.set_address("")  
+    except ValueError as e:
+        print(e)
