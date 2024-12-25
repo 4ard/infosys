@@ -24,6 +24,22 @@ class Customer(BaseCustomer):
     def to_short_string(self):
         return super().__str__()
 
+    @property
+    def full_version(self):
+        return (
+            f"{self.get_name()}",
+            self.get_address(),
+            self.get_phone(),
+            self.get_contact_person(),
+        )
+
+    @property
+    def short_version(self):
+        return (
+            f"{self.get_name()}",
+            self.get_phone(),
+        )
+
 # Пример использования
 if __name__ == "__main__":
     try:
