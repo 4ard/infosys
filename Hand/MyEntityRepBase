@@ -217,9 +217,6 @@ class MyEntityRepYAML(MyEntityRepBase):
             print(f"Ошибка при записи YAML-файла: {e}")
 
 
-    def __str__(self):
-        return f"Short(Id: {self.customer_id}, Name {self.name})"
-
 if name == "__main__":
     json_file_path = 'data.json'
     yaml_file_path = 'data.yaml'
