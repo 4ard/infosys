@@ -52,6 +52,11 @@ class BaseCustomer:
         self.validate_field(value, "contact_person")
         self.__contact_person = value
 
+    def __eq__(self, other):
+        if isinstance(other, Customer):
+            return self.get_phone() == other.get_phone()
+        return False
+
     def __str__(self):
         return (
             f"BaseBaseCustomer(ID: {self.get_customer_id()}, Name: {self.get_name()}, Address: {self.get_address()}, "
