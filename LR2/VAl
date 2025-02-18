@@ -1,0 +1,459 @@
+import json
+
+class JewelryItemBase:
+    def __init__(self, item_id: int, weight: float, price: float):
+        self._item_id = self._validate_item_id(item_id)
+        self._weight = self._validate_weight(weight)
+        self._price = self._validate_price(price)
+
+    @staticmethod
+    def _validate_item_id(value: int) -> int:
+        if isinstance(value, int) and value > 0:
+            return value
+        raise ValueError("ID Должен быть положительным числом")
+
+    @staticmethod
+    def _validate_weight(weight: float) -> float:
+        if isinstance(weight, (float, int)) and weight > 0:
+            return weight
+        raise ValueError("Вес должен быть положительным числом")
+
+    @staticmethod
+    def _validate_price(price: float) -> float:
+        if isinstance(price, (int, float)) and price >= 0:
+            return price
+        raise ValueError("Цена должна быть положительным числом")
+
+    def get_item_id(self) -> int:
+        return self._item_id
+
+    def get_weight(self) -> float:
+        return self._weight
+
+    def get_price(self) -> float:
+        return self._price
+
+    def set_item_id(self, item_id: int):
+        self._item_id = self._validate_item_id(item_id)
+
+    def set_weight(self, weight: float):
+        self._weight = self._validate_weight(weight)
+
+    def set_price(self, price: float):
+        self._price = self._validate_price(price)
+
+    def __repr__(self):
+        return (f"JewelryItemBase(ID: {self._item_id}, Weight: {self._weight}, Price: {self._price})")
+
+class JewelryItem(JewelryItemBase):
+    def __init__(self, item_id: int, type_id: int, material_id: int, weight: float, price: float):
+        super().__init__(item_id, weight, price)
+        self._type_id = type_id
+        self._material_id = material_id
+
+    @classmethod
+    def from_json(cls, json_str: str):
+        parts = json.loads(json_str)
+        return cls(parts['_item_id'], parts['_type_id'], parts['_material_id'], parts['_weight'], parts['_price'])
+
+    def __repr__(self):
+        return (f"JewelryItem:\n"
+                "ID: {self._item_id}, Type: {self._type_id}, Material: {self._material_id}, Weight: {self._weight}, Price: {self._price})")
+
+class JewelryItemRepJson:
+    def __init__(self, file_name: str):
+        self.file_name = file_name
+        self.items = self._load_items()
+
+    def _load_items(self):
+        try:
+            with open(self.file_name, 'r', encoding='utf-8') as file:
+                return [JewelryItem.from_json(json.dumps(item)) for item in json.load(file)]
+        except FileNotFoundError:
+            return []
+        except json.decoder.JSONDecodeError:
+            raise ValueError("Ошибка в формате файла")
+
+    def _save_items(self):
+        with open(self.file_name, 'w', encoding='utf-8') as file:
+            json.dump([item.__dict__ for item in self.items], file, ensure_ascii=False, indent=4)
+
+    def add_item(self, item: JewelryItem):
+        item.set_item_id(self._generate_new_id())
+        self.items.append(item)
+        self._save_items()
+
+    def _generate_new_id(self):
+        return max([item.get_item_id() for item in self.items], default=0) + 1
+
+    def get_item_by_id(self, item_id: int):
+        for item in self.items:
+            if item.get_item_id() == item_id:
+                return item
+        raise ValueError(f"Изделие с ID {item_id} не найдено")
+
+    def replace_item(self, item_id: int, new_item: JewelryItem):
+        for i, item in enumerate(self.items):
+            if item.get_item_id() == item_id:
+                new_item.set_item_id(item_id)
+                self.items[i] = new_item
+                self._save_items()
+                return
+        raise ValueError(f"Изделие с ID {item_id} не найдено")
+
+    def delete_item(self, item_id: int):
+        self.items = [item for item in self.items if item.get_item_id() != item_id]
+        self._save_items()
+
+    def sort_items(self, by_field: str = "price"):
+        self.items.sort(key=lambda x: getattr(x, f'_{by_field}', 0))
+        self._save_items()
+
+    def get_count(self):
+        return len(self.items)
+
+    def read_all_items(self):
+        return self.items
+
+if __name__ == '__main__':
+    jewelry_list = JewelryItemRepJson('jewelry_list.json')
+
+    ring = JewelryItem(1, 2, 3, 4.5, 45000)
+    chain = JewelryItem(2, 3, 1, 10.5, 105000)
+    jewelry_list.add_item(ring)
+    jewelry_list.add_item(chain)
+
+    print("Все изделия:", jewelry_list.read_all_items())
+    print("Изделие с ID 2:", jewelry_list.get_item_by_id(2))
+    print("Количество изделий:", jewelry_list.get_count())
+
+    new_ring = JewelryItem(1, 2, 3, 5.0, 50000)
+    jewelry_list.replace_item(1, new_ring)
+    print("После замены:", jewelry_list.read_all_items())
+
+    jewelry_list.delete_item(9)
+    print("После удаления по ID:", jewelry_list.read_all_items())
+
+    jewelry_list.sort_items("weight")
+    print("После сортировки по весу:", jewelry_list.read_all_items())
+
+
+
+
+
+
+import yaml
+
+
+class JewelryItemBase:
+    def __init__(self, item_id: int, weight: float, price: float):
+        self._item_id = self._validate_item_id(item_id)
+        self._weight = self._validate_weight(weight)
+        self._price = self._validate_price(price)
+
+    @staticmethod
+    def _validate_item_id(value: int) -> int:
+        if isinstance(value, int) and value > 0:
+            return value
+        raise ValueError("ID Должен быть положительным числом")
+
+    @staticmethod
+    def _validate_weight(weight: float) -> float:
+        if isinstance(weight, (float, int)) and weight > 0:
+            return weight
+        raise ValueError("Вес должен быть положительным числом")
+
+    @staticmethod
+    def _validate_price(price: float) -> float:
+        if isinstance(price, (int, float)) and price >= 0:
+            return price
+        raise ValueError("Цена должна быть положительным числом")
+
+    def get_item_id(self) -> int:
+        return self._item_id
+
+    def get_weight(self) -> float:
+        return self._weight
+
+    def get_price(self) -> float:
+        return self._price
+
+    def __repr__(self):
+        return (f"JewelryItemBase(ID: {self._item_id}, Weight: {self._weight}, Price: {self._price})")
+
+
+class JewelryItemRepYaml:
+    def __init__(self, file_name: str):
+        self.file_name = file_name
+        self.items = self._load_items()
+
+    def _load_items(self):
+        try:
+            with open(self.file_name, 'r', encoding='utf-8') as file:
+                return yaml.safe_load(file) or []
+        except FileNotFoundError:
+            return []
+
+    def _save_items(self):
+        with open(self.file_name, 'w', encoding='utf-8') as file:
+            yaml.dump(self.items, file, allow_unicode=True)
+
+    def get_all_items(self):
+        return self.items
+
+    def get_item_by_id(self, item_id: int):
+        for item in self.items:
+            if item['item_id'] == item_id:
+                return item
+        raise ValueError(f"Изделие с ID {item_id} не найдено")
+
+    def get_k_n_short_list(self, k: int, n: int):
+        return self.items[(k * n):((k * n) + n)]
+
+    def sort_items(self, by_field: str = "price"):
+        self.items.sort(key=lambda x: x.get(by_field, 0))
+        self._save_items()
+
+    def add_item(self, item: dict):
+        item['item_id'] = self._generate_new_id()
+        self.items.append(item)
+        self._save_items()
+
+    def _generate_new_id(self):
+        return max([item['item_id'] for item in self.items], default=0) + 1
+
+    def replace_item(self, item_id: int, new_item: dict):
+        for i, item in enumerate(self.items):
+            if item['item_id'] == item_id:
+                new_item['item_id'] = item_id
+                self.items[i] = new_item
+                self._save_items()
+                return
+        raise ValueError(f"Изделие с ID {item_id} не найдено")
+
+    def delete_item(self, item_id: int):
+        self.items = [item for item in self.items if item['item_id'] != item_id]
+        self._save_items()
+
+    def get_count(self):
+        return len(self.items)
+
+
+if __name__ == '__main__':
+    yaml_list = JewelryItemRepYaml('jewelry_list.yaml')
+
+    yaml_list.add_item({'type_id': 2, 'material_id': 3, 'weight': 4.5, 'price': 45000})
+    yaml_list.add_item({'type_id': 3, 'material_id': 1, 'weight': 10.5, 'price': 105000})
+
+    print("Все изделия:", yaml_list.get_all_items())
+
+    print("Изделие с ID 1:", yaml_list.get_item_by_id(1))
+
+    print("k n short list:", yaml_list.get_k_n_short_list(0, 2))
+
+    yaml_list.sort_items("price")
+    print("Отсортированные изделия:", yaml_list.get_all_items())
+
+    yaml_list.replace_item(1, {'type_id': 1, 'material_id': 2, 'weight': 7.0, 'price': 60000})
+    print("После замены:", yaml_list.get_all_items())
+
+    yaml_list.delete_item(2)
+    print("После удаления:", yaml_list.get_all_items())
+
+    print("Количество изделий:", yaml_list.get_count())
+
+
+
+
+import json
+import yaml
+import os
+
+class JewelryItemBase:
+    def __init__(self, item_id: int, weight: float, price: float):
+        self._item_id = self._validate_item_id(item_id)
+        self._weight = self._validate_weight(weight)
+        self._price = self._validate_price(price)
+
+    @staticmethod
+    def _validate_item_id(value: int) -> int:
+        if isinstance(value, int) and value > 0:
+            return value
+        raise ValueError("ID Должен быть положительным числом")
+
+    @staticmethod
+    def _validate_weight(weight: float) -> float:
+        if isinstance(weight, (float, int)) and weight > 0:
+            return weight
+        raise ValueError("Вес должен быть положительным числом")
+
+    @staticmethod
+    def _validate_price(price: float) -> float:
+        if isinstance(price, (int, float)) and price >= 0:
+            return price
+        raise ValueError("Цена должна быть положительным числом")
+
+    def get_item_id(self) -> int:
+        return self._item_id
+
+    def get_weight(self) -> float:
+        return self._weight
+
+    def get_price(self) -> float:
+        return self._price
+
+    def set_item_id(self, item_id: int):
+        self._item_id = self._validate_item_id(item_id)
+
+    def set_weight(self, weight: float):
+        self._weight = self._validate_weight(weight)
+
+    def set_price(self, price: float):
+        self._price = self._validate_price(price)
+
+    def __repr__(self):
+        return (f"JewelryItemBase(ID: {self._item_id}, Weight: {self._weight}, Price: {self._price})")
+
+class JewelryItem(JewelryItemBase):
+    def __init__(self, item_id: int, type_id: int, material_id: int, weight: float, price: float):
+        super().__init__(item_id, weight, price)
+        self._type_id = self._validate_type_id(type_id)
+        self._material_id = self._validate_material_id(material_id)
+
+    @staticmethod
+    def _validate_type_id(type_id: int) -> int:
+        if isinstance(type_id, int) and type_id >= 1 and type_id <= 3:
+            return type_id
+        raise ValueError("Такого типа изделия не существует\n"
+                         "Используйте следующие значения:\n"
+                         "1 - Кольцо\n"
+                         "2 - Цепь\n"
+                         "3 - Серьги")
+
+    @staticmethod
+    def _validate_material_id(material_id: int) -> int:
+        if isinstance(material_id, int) and material_id >= 1 and material_id <= 3:
+            return material_id
+        raise ValueError("Такого материала не существует\n"
+                         "Используйте следующие значения:\n"
+                         "1 - Золото\n"
+                         "2 - Серебро\n"
+                         "3 - Платина")
+
+    def __repr__(self):
+        return (f"JewelryItem(ID: {self._item_id}, Type: {self._type_id}, Material: {self._material_id}, "
+                f"Weight: {self._weight}, Price: {self._price})")
+
+class JewelryItemRepository:
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.items = self.load_items()
+
+    def load_items(self):
+        raise NotImplementedError("Метод load_items должен быть реализован в дочернем классе.")
+
+    def save_items(self):
+        raise NotImplementedError("Метод save_items должен быть реализован в дочернем классе.")
+
+    def get_by_id(self, item_id: int):
+        for item in self.items:
+            if item.get_item_id() == item_id:
+                return item
+        return None
+
+    def sort_by_field(self, field: str):
+        if hasattr(JewelryItem, field):
+            self.items.sort(key=lambda x: getattr(x, f"_{field}", 0))
+        else:
+            raise ValueError(f"Поле {field} не существует в классе JewelryItem.")
+
+    def add_item(self, item: JewelryItem):
+        new_id = max([item.get_item_id() for item in self.items], default=0) + 1
+        item.set_item_id(new_id)
+        self.items.append(item)
+        self.save_items()
+
+    def replace_item_by_id(self, item_id: int, updated_item: JewelryItem):
+        for index, item in enumerate(self.items):
+            if item.get_item_id() == item_id:
+                updated_item.set_item_id(item_id)
+                self.items[index] = updated_item
+                self.save_items()
+                return
+        raise ValueError(f"Изделие с ID {item_id} не найдено.")
+
+    def delete_item_by_id(self, item_id: int):
+        self.items = [item for item in self.items if item.get_item_id() != item_id]
+        self.save_items()
+
+    def get_count(self):
+        return len(self.items)
+
+class JewelryItemRepJson(JewelryItemRepository):
+    def load_items(self):
+        if not os.path.exists(self.filename):
+            return []
+        with open(self.filename, 'r', encoding='utf-8') as file:
+            return [JewelryItem(**data) for data in json.load(file)]
+
+    def save_items(self):
+        with open(self.filename, 'w', encoding='utf-8') as file:
+            json.dump([item.__dict__ for item in self.items], file, ensure_ascii=False, indent=4)
+
+class JewelryItemRepYaml(JewelryItemRepository):
+    def load_items(self):
+        if not os.path.exists(self.filename):
+            return []
+        with open(self.filename, 'r', encoding='utf-8') as file:
+            data = yaml.safe_load(file) or []
+            return [JewelryItem(**item) for item in data]
+
+    def save_items(self):
+        with open(self.filename, 'w', encoding='utf-8') as file:
+            yaml.dump([item.__dict__ for item in self.items], file, allow_unicode=True)
+
+
+if __name__ == '__main__':
+    json_filename = 'jewelry_list.json'
+    yaml_filename = 'jewelry_list.yaml'
+
+    json_list = JewelryItemRepJson(json_filename)
+    yaml_list = JewelryItemRepYaml(yaml_filename)
+
+    ring = JewelryItem(item_id=1, type_id=1, material_id=2, weight=10.5, price=105000)
+
+    print("Добавляем новое изделие:")
+    json_list.add_item(ring)
+    yaml_list.add_item(ring)
+    print(f"Добавлено изделие: {ring}")
+
+    print("\nПолучаем изделие по ID 1 из JSON:")
+    item_json = json_list.get_by_id(1)
+    print(f"Найдено изделие: {item_json}")
+
+    print("\nПолучаем изделие по ID 1 из YAML:")
+    print(f"Найдено изделие:", yaml_list.get_by_id(1))
+
+    updated_ring = JewelryItem(item_id=1, type_id=1, material_id=3, weight=12.0, price=1600.0)
+    print("\nЗаменяем изделие с ID 1:")
+    json_list.replace_item_by_id(1, updated_ring)
+    yaml_list.replace_item_by_id(1, updated_ring)
+    print(f"Изделие с ID 1 обновлено: {updated_ring}")
+
+    print("\nУдаляем изделие с ID 1 из JSON:")
+    json_list.delete_item_by_id(1)
+    print("\nУдаляем изделие с ID 1 из YAML:")
+    yaml_list.delete_item_by_id(1)
+
+    print("\nСортируем изделия по цене в JSON:")
+    json_list.sort_by_field('price')
+    for item in json_list.items:
+        print(item)
+
+    print("\nСортируем изделия по цене в YAML:")
+    yaml_list.sort_by_field('price')
+    for item in yaml_list.items:
+        print(item)
+
+    print(f"\nОбщее количество изделий в JSON: {json_list.get_count()}")
+    print(f"Общее количество изделий в YAML: {yaml_list.get_count()}")
