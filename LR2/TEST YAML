@@ -8,6 +8,17 @@ class Customer:
         self.phone = phone
         self.contact_person = contact_person
 
+    def __eq__(self, other):
+        return isinstance(other, Customer) and self.phone == other.phone
+
+class Short:
+    def __init__(self, customer_id, name):
+        self.customer_id = customer_id
+        self.name = name
+
+    def __str__(self):
+        return f"Short(Id: {self.customer_id}, Name: {self.name})"
+
 class MyEntityRepYAML:
     def __init__(self, file_path):
         self.file_path = file_path
@@ -15,33 +26,24 @@ class MyEntityRepYAML:
     def read(self):
         try:
             with open(self.file_path, 'r', encoding='utf-8') as file:
-                data = yaml.safe_load(file)
-                customers = []
-                for item in data:
-                    customer = Customer(
-                        customer_id=item.get('customer_id'),
-                        name=item.get('name'),
-                        address=item.get('address'),
-                        phone=item.get('phone'),
-                        contact_person=item.get('contact_person')
-                    )
-                    customers.append(customer)
-                return customers
+                data = yaml.safe_load(file) or []
+                return [Customer(**item) for item in data]
         except (FileNotFoundError, yaml.YAMLError) as e:
             print(f"Ошибка при чтении файла: {e}")
             return []
 
     def write(self, customers):
         try:
-            data = []
-            for customer in customers:
-                data.append({
+            data = [
+                {
                     "customer_id": customer.customer_id,
                     "name": customer.name,
                     "address": customer.address,
                     "phone": customer.phone,
                     "contact_person": customer.contact_person
-                })
+                } 
+                for customer in customers
+            ]
             with open(self.file_path, 'w', encoding='utf-8') as file:
                 yaml.safe_dump(data, file, allow_unicode=True, default_flow_style=False)
             print("Данные успешно записаны в файл.")
@@ -49,160 +51,122 @@ class MyEntityRepYAML:
             print(f"Ошибка при записи файла: {e}")
 
     def get_customer_id(self, customer_id):
-        try:
-            customers = self.read()
-            for customer in customers:
-                if customer.customer_id == customer_id:
-                    return customer
-            print(f"Клиент с ID {customer_id} не найден.")
-            return None
-        except Exception as e:
-            print(f"Ошибка при поиске клиента: {e}")
-            return None
+        customers = self.read()
+        for customer in customers:
+            if customer.customer_id == customer_id:
+                return customer
+        print(f"Клиент с ID {customer_id} не найден.")
+        return None
 
     def get_k_n_short_list(self, k, n):
-    try:
-        customers = self.read()
-        start_index = (k - 1) * n
-        end_index = start_index + n
-        short_list = [
-            Short(customer.customer_id, customer.name)
-            for customer in customers[start_index:end_index]
-        ]
-        return short_list
-    except Exception as e:
-        print(f"Ошибка при получении списка: {e}")
-        return []
+        try:
+            customers = self.read()
+            start_index = (k - 1) * n
+            end_index = start_index + n
+            return [Short(c.customer_id, c.name) for c in customers[start_index:end_index]]
+        except Exception as e:
+            print(f"Ошибка при получении списка: {e}")
+            return []
 
     def sort_by_field(self, field):
-    try:
-        customers = self.read()
-        if not hasattr(Customer, field):
-            print(f"Ошибка: поле '{field}' не существует.")
+        try:
+            customers = self.read()
+            if not customers or field not in vars(customers[0]):
+                print(f"Ошибка: поле '{field}' не существует.")
+                return []
+            return sorted(customers, key=lambda x: getattr(x, field))
+        except Exception as e:
+            print(f"Ошибка сортировки: {e}")
             return []
-        sorted_customers = sorted(customers, key=lambda x: getattr(x, field))
-        return sorted_customers
-    except Exception as e:
-        print(f"Ошибка сортировки: {e}")
-        return []
 
     def add(self, name, address, phone, contact_person):
-    try:
-        customers = self.read()
-        new_customer = Customer(
-            customer_id=None,
-            name=name,
-            address=address,
-            phone=phone,
-            contact_person=contact_person
-        )
-        if new_customer in customers:
-            print("Ошибка: клиент с таким номером телефона уже существует.")
-            return None
+        try:
+            customers = self.read()
 
-        new_id = max([customer.customer_id for customer in customers], default=0) + 1
-        new_customer.customer_id = new_id  # Присваиваем новый ID
-        customers.append(new_customer)
-        self.write(customers)
-        print(f"Добавлен новый клиент с ID: {new_id}")
-        return new_customer
-    except Exception as e:
-        print(f"Ошибка добавления: {e}")
-        return None
+            if any(c.phone == phone for c in customers):
+                print("Ошибка: клиент с таким номером телефона уже существует.")
+                return None
+
+            new_id = max([c.customer_id for c in customers], default=0) + 1
+            new_customer = Customer(new_id, name, address, phone, contact_person)
+            customers.append(new_customer)
+            self.write(customers)
+            print(f"Добавлен новый клиент с ID: {new_id}")
+            return new_customer
+        except Exception as e:
+            print(f"Ошибка добавления: {e}")
+            return None
 
     def delete_customer(self, customer_id):
         try:
             customers = self.read()
-            filtered_customers = [customer for customer in customers if customer.customer_id != customer_id]
+            filtered_customers = [c for c in customers if c.customer_id != customer_id]
+
             if len(customers) == len(filtered_customers):
                 print(f"Клиент с ID {customer_id} не найден.")
                 return False
+
             self.write(filtered_customers)
-            print(f"Клиент ID: {customer_id}, удален")
+            print(f"Клиент ID: {customer_id} удален.")
             return True
         except Exception as e:
-print(f"Ошибка при удалении: {e}")
+            print(f"Ошибка при удалении: {e}")
             return False
 
-       def change_element(self, customer_id, name=None, address=None, phone=None, contact_person=None):
-    try:
-        customers = self.read()
-        customer_found = False
+    def change_element(self, customer_id, name=None, address=None, phone=None, contact_person=None):
+        try:
+            customers = self.read()
+            customer = next((c for c in customers if c.customer_id == customer_id), None)
 
-        for customer in customers:
-            if customer.customer_id == customer_id:
-                if phone is not None:
-                    temp_customer = Customer(
-                        customer_id=None,  # Временный объект для проверки
-                        name=customer.name,
-                        address=customer.address,
-                        phone=phone,
-                        contact_person=customer.contact_person
-                    )
-                    if temp_customer in customers and customer.phone != phone:
-                        print("Ошибка: номер телефона уже используется другим клиентом.")
-                        return None
-                if name is not None:
-                    customer.name = name
-                if address is not None:
-                    customer.address = address
-                if phone is not None:
-                    customer.phone = phone
-                if contact_person is not None:
-                    customer.contact_person = contact_person
-                customer_found = True
-                break
-        if not customer_found:
-            print(f"Клиент с ID {customer_id} не найден.")
+            if not customer:
+                print(f"Клиент с ID {customer_id} не найден.")
+                return None
+
+            if phone and any(c.phone == phone and c.customer_id != customer_id for c in customers):
+                print("Ошибка: номер телефона уже используется другим клиентом.")
+                return None
+
+            if name:
+                customer.name = name
+            if address:
+                customer.address = address
+            if phone:
+                customer.phone = phone
+            if contact_person:
+                customer.contact_person = contact_person
+
+            self.write(customers)
+            print(f"Обновлены данные клиента ID: {customer_id}")
+            return customer
+        except Exception as e:
+            print(f"Ошибка обновления клиента: {e}")
             return None
-
-        self.write(customers)
-        print(f"Обновлены данные клиента ID: {customer_id}")
-        return customer
-    except Exception as e:
-        print(f"Ошибка обновления клиента: {e}")
-        return None
-
 
     def get_count(self):
         try:
-            customers = self.read()
-            return len(customers)
+            return len(self.read())
         except Exception as e:
             print(f"Ошибка при подсчёте количества клиентов: {e}")
             return 0
 
-
-def __str__(self):
-        return f"Short(Id: {self.customer_id}, Name {self.name})"
-
-if name == "__main__":
+if __name__ == "__main__":
     file_path = 'C:/data.yaml'
     yaml_repository = MyEntityRepYAML(file_path)
+
     customers = yaml_repository.read()
-    for customer in customers:
-        print(f"ID: {customer.customer_id}, Имя: {customer.name}, Адрес: {customer.address}, Телефон: {customer.phone}, Контактное лицо: {customer.contact_person}")
-    new_customer = yaml_repository.add(
-        name="Akula Lev",
-        address="Rashpil",
-        phone="78789795643",
-        contact_person="Leha zdravov"
-    )
+    for c in customers:
+        print(f"ID: {c.customer_id}, Имя: {c.name}, Адрес: {c.address}, Телефон: {c.phone}, Контактное лицо: {c.contact_person}")
+
+    new_customer = yaml_repository.add("Akula Lev", "Rashpil", "78789795643", "Leha zdravov")
     if new_customer:
         print(f"Новый клиент: ID: {new_customer.customer_id}, Имя: {new_customer.name}")
-    changed_element = yaml_repository.change_element(
-        customer_id=2,
-        name="Hello World",
-        address="Chensky",
-        phone="123456789",
-        contact_person="ELENA"
-    )
+
+    changed_element = yaml_repository.change_element(2, "Hello World", "Chensky", "123456789", "ELENA")
     if changed_element:
         print(f"Обновленный клиент: ID: {changed_element.customer_id}, Имя: {changed_element.name}")
-    success = yaml_repository.delete_customer(customer_id=2)
-    if success:
-        print("Удаление выполнено успешно.")
-    else:
-        print("Ошибка при удалении.")
+
+    success = yaml_repository.delete_customer(2)
+    print("Удаление выполнено успешно." if success else "Ошибка при удалении.")
+
     count = yaml_repository.get_count()
     print(f"Количество клиентов: {count}")
