@@ -1,6 +1,7 @@
 import json
 import yaml
 
+# Класс клиента
 class Customer:
     def __init__(self, customer_id, name, address, phone, contact_person):
         self.customer_id = customer_id
@@ -9,9 +10,37 @@ class Customer:
         self.phone = phone
         self.contact_person = contact_person
 
+# Паттерн одиночка для работы с БД
+class DatabaseConnection:
+    _instance = None
+
+    def __new__(cls, db_path):
+        if cls._instance is None:
+            cls._instance = super(DatabaseConnection, cls).__new__(cls)
+            cls._instance.db_path = db_path  # Путь к базе данных
+            cls._instance.connection = None  # Здесь будет храниться соединение с базой данных
+        return cls._instance
+
+    def connect(self):
+        if self.connection is None:
+            print(f"Подключаемся к базе данных {self.db_path}...")
+            # Реализуйте логику подключения к вашей базе данных
+            # Например: self.connection = sqlite3.connect(self.db_path)
+        return self.connection
+
+    def disconnect(self):
+        if self.connection:
+            print("Закрываем соединение с базой данных...")
+            # Реализуйте логику закрытия соединения
+            # Например: self.connection.close()
+            self.connection = None
+
+
+# Абстрактный базовый класс для работы с репозиториями
 class MyEntityRepBase:
-    def __init__(self, file_path):
-        self.file_path = file_path
+    def __init__(self, db_path):
+        self.db_path = db_path
+        self.db_connection = DatabaseConnection(db_path)  # Используем делегацию для работы с БД
 
     def read(self):
         raise NotImplementedError("Метод read() должен быть реализован в подклассе")
@@ -19,6 +48,14 @@ class MyEntityRepBase:
     def write(self, customers):
         raise NotImplementedError("Метод write() должен быть реализован в подклассе")
 
+    # Делегирование подключения и отключения от БД
+    def connect_to_db(self):
+        return self.db_connection.connect()
+
+    def disconnect_from_db(self):
+        self.db_connection.disconnect()
+
+    # Получение объекта по ID
     def get_customer_id(self, customer_id):
         try:
             customers = self.read()
@@ -31,56 +68,60 @@ class MyEntityRepBase:
             print(f"Ошибка при поиске клиента: {e}")
             return None
 
+    # Получение k-го списка из n элементов
     def get_k_n_short_list(self, k, n):
-    try:
-        customers = self.read()
-        start_index = (k - 1) * n
-        end_index = start_index + n
-        short_list = [
-            Short(customer.customer_id, customer.name)
-            for customer in customers[start_index:end_index]
-        ]
-        return short_list
-    except Exception as e:
-        print(f"Ошибка при получении списка: {e}")
-        return []
-
-    def sort_by_field(self, field):
-    try:
-        customers = self.read()
-        if not hasattr(Customer, field):
-            print(f"Ошибка: поле '{field}' не существует.")
+        try:
+            customers = self.read()
+            start_index = (k - 1) * n
+            end_index = start_index + n
+            short_list = [
+                {"customer_id": customer.customer_id, "name": customer.name}
+                for customer in customers[start_index:end_index]
+            ]
+            return short_list
+        except Exception as e:
+            print(f"Ошибка при получении списка: {e}")
             return []
-        sorted_customers = sorted(customers, key=lambda x: getattr(x, field))
-        return sorted_customers
-    except Exception as e:
-        print(f"Ошибка сортировки: {e}")
-        return []
 
+    # Сортировка по выбранному полю
+    def sort_by_field(self, field):
+        try:
+            customers = self.read()
+            if not hasattr(Customer, field):
+                print(f"Ошибка: поле '{field}' не существует.")
+                return []
+            sorted_customers = sorted(customers, key=lambda x: getattr(x, field))
+            return sorted_customers
+        except Exception as e:
+            print(f"Ошибка сортировки: {e}")
+            return []
+
+    # Добавление клиента в список
     def add(self, name, address, phone, contact_person):
-    try:
-        customers = self.read()
-        new_customer = Customer(
-            customer_id=None,
-            name=name,
-            address=address,
-            phone=phone,
-            contact_person=contact_person
-        )
-        if new_customer in customers:
-            print("Ошибка: клиент с таким номером телефона уже существует.")
+        try:
+            customers = self.read()
+            new_customer = Customer(
+                customer_id=None,
+                name=name,
+                address=address,
+                phone=phone,
+                contact_person=contact_person
+            )
+            if new_customer in customers:
+                print("Ошибка: клиент с таким номером телефона уже существует.")
+                return None
+
+            new_id = max([customer.customer_id for customer in customers], default=0) + 1
+            new_customer.customer_id = new_id  # Присваиваем новый ID
+            customers.append(new_customer)
+            self.write(customers)
+            print(f"Добавлен новый клиент с ID: {new_id}")
+            return new_customer
+        except Exception as e:
+            print(f"Ошибка добавления: {e}")
             return None
 
-        new_id = max([customer.customer_id for customer in customers], default=0) + 1
-        new_customer.customer_id = new_id  # Присваиваем новый ID
-        customers.append(new_customer)
-        self.write(customers)
-        print(f"Добавлен новый клиент с ID: {new_id}")
-        return new_customer
-    except Exception as e:
-        print(f"Ошибка добавления: {e}")
-        return None
-
+    # Удаление клиента по ID
     def delete_customer(self, customer_id):
         try:
             customers = self.read()
@@ -95,45 +136,47 @@ class MyEntityRepBase:
             print(f"Ошибка при удалении: {e}")
             return False
 
+    # Изменение данных клиента по ID
     def change_element(self, customer_id, name=None, address=None, phone=None, contact_person=None):
-    try:
-        customers = self.read()
-        customer_found = False
+        try:
+            customers = self.read()
+            customer_found = False
 
-        for customer in customers:
-            if customer.customer_id == customer_id:
-                if phone is not None:
-                    temp_customer = Customer(
-                        customer_id=None,  # Временный объект для проверки
-                        name=customer.name,
-                        address=customer.address,
-                        phone=phone,
-                        contact_person=customer.contact_person
-                    )
-                    if temp_customer in customers and customer.phone != phone:
-                        print("Ошибка: номер телефона уже используется другим клиентом.")
-                        return None
-                if name is not None:
-                    customer.name = name
-                if address is not None:
-                    customer.address = address
-                if phone is not None:
-                    customer.phone = phone
-                if contact_person is not None:
-                    customer.contact_person = contact_person
-                customer_found = True
-                break
-        if not customer_found:
-            print(f"Клиент с ID {customer_id} не найден.")
+            for customer in customers:
+                if customer.customer_id == customer_id:
+                    if phone is not None:
+                        temp_customer = Customer(
+                            customer_id=None,  # Временный объект для проверки
+                            name=customer.name,
+                            address=customer.address,
+                            phone=phone,
+                            contact_person=customer.contact_person
+                        )
+                        if temp_customer in customers and customer.phone != phone:
+                            print("Ошибка: номер телефона уже используется другим клиентом.")
+                            return None
+                    if name is not None:
+                        customer.name = name
+                    if address is not None:
+                        customer.address = address
+                    if phone is not None:
+                        customer.phone = phone
+                    if contact_person is not None:
+                        customer.contact_person = contact_person
+                    customer_found = True
+                    break
+            if not customer_found:
+                print(f"Клиент с ID {customer_id} не найден.")
+                return None
+
+            self.write(customers)
+            print(f"Обновлены данные клиента ID: {customer_id}")
+            return customer
+        except Exception as e:
+            print(f"Ошибка обновления клиента: {e}")
             return None
 
-        self.write(customers)
-        print(f"Обновлены данные клиента ID: {customer_id}")
-        return customer
-    except Exception as e:
-        print(f"Ошибка обновления клиента: {e}")
-        return None
-
+    # Получение количества клиентов
     def get_count(self):
         try:
             customers = self.read()
@@ -142,10 +185,13 @@ class MyEntityRepBase:
             print(f"Ошибка при подсчёте количества клиентов: {e}")
             return 0
 
+
+# Реализация работы с JSON
 class MyEntityRepJSON(MyEntityRepBase):
     def read(self):
         try:
-            with open(self.file_path, 'r', encoding='utf-8') as file:
+            connection = self.connect_to_db()  # Подключение через делегацию
+            with open(self.db_path, 'r', encoding='utf-8') as file:
                 data = json.load(file)
                 customers = []
                 for item in data:
@@ -164,6 +210,7 @@ class MyEntityRepJSON(MyEntityRepBase):
 
     def write(self, customers):
         try:
+            connection = self.connect_to_db()  # Подключение через делегацию
             data = []
             for customer in customers:
                 data.append({
@@ -173,16 +220,19 @@ class MyEntityRepJSON(MyEntityRepBase):
                     "phone": customer.phone,
                     "contact_person": customer.contact_person
                 })
-            with open(self.file_path, 'w', encoding='utf-8') as file:
+            with open(self.db_path, 'w', encoding='utf-8') as file:
                 json.dump(data, file, ensure_ascii=False, indent=4)
             print("Данные успешно записаны в JSON-файл.")
         except Exception as e:
             print(f"Ошибка при записи JSON-файла: {e}")
 
+
+# Реализация работы с YAML
 class MyEntityRepYAML(MyEntityRepBase):
     def read(self):
         try:
-            with open(self.file_path, 'r', encoding='utf-8') as file:
+            connection = self.connect_to_db()  # Подключение через делегацию
+            with open(self.db_path, 'r', encoding='utf-8') as file:
                 data = yaml.safe_load(file)
                 customers = []
                 for item in data:
@@ -201,6 +251,7 @@ class MyEntityRepYAML(MyEntityRepBase):
 
     def write(self, customers):
         try:
+            connection = self.connect_to_db()  # Подключение через делегацию
             data = []
             for customer in customers:
                 data.append({
@@ -210,14 +261,14 @@ class MyEntityRepYAML(MyEntityRepBase):
                     "phone": customer.phone,
                     "contact_person": customer.contact_person
                 })
-            with open(self.file_path, 'w', encoding='utf-8') as file:
+            with open(self.db_path, 'w', encoding='utf-8') as file:
                 yaml.safe_dump(data, file, allow_unicode=True, default_flow_style=False)
             print("Данные успешно записаны в YAML-файл.")
         except Exception as e:
             print(f"Ошибка при записи YAML-файла: {e}")
 
 
-if name == "__main__":
+if __name__ == "__main__":
     json_file_path = 'data.json'
     yaml_file_path = 'data.yaml'
 
